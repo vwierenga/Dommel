@@ -81,13 +81,9 @@ public class Dommel {
 
                     //} else {
                         waitingSoftwareEngineer.acquire(3);
-                        System.out.println("three wainting engineers");
                         softwareEngineerInvitation.release(3);
-                        System.out.printf("engineers invited");
-                        softwareEngineerQueueMutex.acquire();
-                        int engineersInQueue = softwareEngineersInQueue;
-                        System.out.println(engineersInQueue);
-                        softwareEngineerQueueMutex.release();
+                        softwareEngineerInMeetingRoom.acquire(3);
+                        softwareEngineerMeeting();
                     //}
 
                     /*
