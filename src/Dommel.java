@@ -74,26 +74,43 @@ public class Dommel {
             System.out.println("Jaap Begin");
             while (true) {
                 try {
-                    Thread.sleep((int) (Math.random() * 1000));
-                    if (waitingUser.tryAcquire()){
-                        waitingSoftwareEngineer.acquire();
+                    Thread.sleep((int) (Math.random() * 2000));
+                    System.out.println("Jaap cycle");
+                    //if (waitingUser.tryAcquire()){
+                        //waitingSoftwareEngineer.acquire();
 
-                    } else {
+                    //} else {
+                        waitingSoftwareEngineer.acquire(3);
+                        System.out.println("three wainting engineers");
+                        softwareEngineerInvitation.release(3);
+                        System.out.printf("engineers invited");
+                        softwareEngineerQueueMutex.acquire();
+                        int engineersInQueue = softwareEngineersInQueue;
+                        System.out.println(engineersInQueue);
+                        softwareEngineerQueueMutex.release();
+                    //}
+
+                    /*
+
+                     */
+
+                    /*
+                    else {
                         softwareEngineerQueueMutex.acquire();
                         int engineersInQueue = softwareEngineersInQueue;
                         softwareEngineerQueueMutex.release();
                         if (engineersInQueue >= 3) {
-                            System.out.println("prepare meeting");
                             for(int i=0; i < 3; i++) {
                                 waitingSoftwareEngineer.acquire();
                                 softwareEngineerInvitation.release();
-                                System.out.println(i);
                             }
 
                             softwareEngineerInMeetingRoom.acquire(3);
                             softwareEngineerMeeting();
                         }
                     }
+
+                     */
 
                     //userCompanyInvitation.release();
                     //System.out.println("Jaap");
@@ -111,7 +128,7 @@ public class Dommel {
             System.out.println("software engineer meeting in progress");
             try {
                 Thread.sleep((int) (Math.random() * 3000));
-                softwareEngineerInMeetingRoom.release(3);
+                //softwareEngineerInMeetingRoom.release(3);
             } catch (InterruptedException e) {
 
             }
@@ -132,17 +149,25 @@ public class Dommel {
 
                     System.out.println("SoftwareEngineer ready");
                     softwareEngineerInvitation.acquire();
-
+                    System.out.println("SoftwareEngineer invitation acquired");
                     softwareEngineerQueueMutex.acquire();
                     softwareEngineersInQueue--;
+                    System.out.println("engineers in queue " + softwareEngineersInQueue);
                     softwareEngineerQueueMutex.release();
 
-                    Thread.sleep(100);
-                    softwareEngineerInMeetingRoom.release();
-                    System.out.println("SoftwareEngineer");
+                    goToMeeting();
                 } catch (InterruptedException e) {
 
                 }
+            }
+        }
+
+        public void goToMeeting(){
+            try {
+                Thread.sleep(100);
+                softwareEngineerInMeetingRoom.release();
+            } catch (InterruptedException e) {
+
             }
         }
     }
