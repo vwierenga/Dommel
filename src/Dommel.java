@@ -6,7 +6,7 @@ import java.util.concurrent.Semaphore;
  * Created by Vincent on 9/25/2016.
  */
 public class Dommel {
-    private static final int amountOfSoftwareEngineers = 3; // should be 6
+    private static final int amountOfSoftwareEngineers = 6; // should be 6
     private static final int amountOfUsers = 10;
     private static final int softwareEngineerQueueLength = 3;
     private ArrayList<SoftwareEngineer> softwareEngineers;
@@ -24,6 +24,7 @@ public class Dommel {
     }
 
     public void run() {
+        //Initializing the semaphores
         waitingUser = new Semaphore(0);
         userCompanyInvitation = new Semaphore(0);
         userAtCompany = new Semaphore(0);
@@ -35,13 +36,11 @@ public class Dommel {
         softwareEngineerNeededInMeetingRoom = new Semaphore(0);
 
         meetingFinished = new Semaphore(0);
-
         userQueueMutex = new Semaphore(1);
-
         softwareEngineerQueueMutex = new Semaphore(1);
-
         meetingMutex = new Semaphore(1);
 
+        //Creating and starting the threads
         Jaap jaap = new Jaap();
 
         for(int i=0; i < amountOfUsers; i++){
@@ -57,17 +56,7 @@ public class Dommel {
         }
 
         Thread jaapThread = new Thread(jaap);
-
         jaapThread.start();
-
-
-        try{
-            jaapThread.join();
-
-
-        } catch (InterruptedException e){
-
-        }
     }
 
     class Jaap implements Runnable {
@@ -77,33 +66,58 @@ public class Dommel {
 
         @Override
         public void run() {
-            System.out.println("Jaap Begin");
             while (true) {
                 try {
                     Thread.sleep((int) (Math.random() * 2000));
-                    System.out.println("Jaap cycle");
 
+                    //Get the amount of software engineers in queue. This is a critical section.
+                    softwareEngineerQueueMutex.acquire();
+                    int engineersAmount = softwareEngineersInQueue;
+                    softwareEngineerQueueMutex.release();
+
+                    //Check if there are any waiting users
                     if (waitingUser.tryAcquire()){
-                        waitingSoftwareEngineer.acquire();
+                        //acquire all software engineers.
+                        softwareEngineerQueueMutex.acquire();
+                        waitingSoftwareEngineer.acquire(softwareEngineersInQueue);
+                        softwareEngineerQueueMutex.release();
 
                         userQueueMutex.acquire();
                         int amount = usersInQueue;
                         userQueueMutex.release();
 
+                        //Check if all the users are at the company
                         userCompanyInvitation.release(amount);
                         userAtCompany.acquire(amount);
-                        softwareEngineerInvitation.release();
+
+                        //Invite all software engineers to the meeting room.
+                        softwareEngineerQueueMutex.acquire();
+                        softwareEngineerInvitation.release(softwareEngineersInQueue);
+                        softwareEngineerQueueMutex.release();
+
+                        //Invite all the users to the meeting room
                         userMeetingInvitation.release(amount);
 
+                        //Use a semaphore to make sure only one user gets in the meeting room. The rest are going back to work is this is 0.
                         softwareEngineerNeededInMeetingRoom.release();
+
+                        //Makes sure all the users are in the meeting room before continuing.
                         userInMeetingRoom.acquire(amount);
 
+                        //Start the meeting
                         userMeeting(amount + 1);
 
-                    } else {
-                        waitingSoftwareEngineer.acquire(3);
-                        softwareEngineerInvitation.release(3);
+                        //Check if there are at least 3 waiting software engineers
+                    } else if (waitingSoftwareEngineer.tryAcquire(3)){
+
+                        //acquire the rest of them and invite them so they can race to the door.
+                        waitingSoftwareEngineer.acquire(engineersAmount - 3);
+                        softwareEngineerInvitation.release(engineersAmount);
+
+                        //Make sure only 3 of them enter the room.
                         softwareEngineerNeededInMeetingRoom.release(3);
+
+                        //Start the meeting.
                         softwareEngineerMeeting();
                     }
 
@@ -120,11 +134,15 @@ public class Dommel {
                 meetingMutex.acquire();
                 meetingInProgress = true;
                 meetingMutex.release();
+
+                //Simulate the meeting
                 Thread.sleep((int) (Math.random() * 3000));
+
                 meetingMutex.acquire();
                 meetingInProgress = false;
                 meetingMutex.release();
 
+                //Open the door.
                 meetingFinished.release(amountOfPeopleInMeeting);
             } catch (InterruptedException e) {
 
@@ -137,11 +155,15 @@ public class Dommel {
                 meetingMutex.acquire();
                 meetingInProgress = true;
                 meetingMutex.release();
+
+                //Simulate the meeting.
                 Thread.sleep((int) (Math.random() * 3000));
+
                 meetingMutex.acquire();
                 meetingInProgress = false;
                 meetingMutex.release();
 
+                //Open the door.
                 meetingFinished.release(3);
             } catch (InterruptedException e) {
 
@@ -162,6 +184,7 @@ public class Dommel {
                     notifyAvailable();
                 } else {
                     try {
+                        //Wait for the meeting to finish so we can get back to work.
                         meetingFinished.acquire();
                         state = 1;
                     } catch (InterruptedException e) {
@@ -173,10 +196,15 @@ public class Dommel {
 
         public void goToMeeting(){
             try {
+                //Simulate walking to the meeting.
                 Thread.sleep(100);
+
+                //Check to see if there are any more software engineers needed in the meeting room.
                 if (softwareEngineerNeededInMeetingRoom.tryAcquire()) {
                     state = 2;
                 } else {
+                    //Go back to work.
+                    System.out.println("too late");
                     state = 0;
                 }
             } catch (InterruptedException e) {
@@ -186,6 +214,7 @@ public class Dommel {
 
         public void work() {
             try {
+                //Simulate working.
                 Thread.sleep((int) (Math.random() * 1000));
             } catch (InterruptedException e) {
 
@@ -194,17 +223,19 @@ public class Dommel {
 
         public void notifyAvailable() {
             try {
+                //Check if there is a meeting in progress.
                 meetingMutex.acquire();
                 boolean meeting = meetingInProgress;
                 meetingMutex.release();
 
                 if(!meeting) {
+                    //Let Jaap know we're available.
                     waitingSoftwareEngineer.release();
-
                     softwareEngineerQueueMutex.acquire();
                     softwareEngineersInQueue++;
                     softwareEngineerQueueMutex.release();
 
+                    //Start wainting.
                     System.out.println("SoftwareEngineer ready");
                     softwareEngineerInvitation.acquire();
 
@@ -237,6 +268,7 @@ public class Dommel {
                         complain();
                     } else {
                         try {
+                            //Wait for the meeting to finish so we can get back to work.
                             meetingFinished.acquire();
                             state = 0;
                         } catch (InterruptedException e) {
@@ -249,7 +281,8 @@ public class Dommel {
 
         public void useSoftware(){
             try {
-                Thread.sleep((int) (Math.random() * 1000));
+                //Simulate using software.
+                Thread.sleep((int) (Math.random() * 100000));
 
             } catch (InterruptedException e) {
 
@@ -258,12 +291,14 @@ public class Dommel {
 
         public void complain(){
             try {
+                //Let Jaap know we've found a bug.
                 waitingUser.release();
 
                 userQueueMutex.acquire();
                 usersInQueue++;
                 userQueueMutex.release();
 
+                //Wait for an invitation.
                 userCompanyInvitation.acquire();
 
                 userQueueMutex.acquire();
@@ -279,8 +314,13 @@ public class Dommel {
         public void goToCompany(){
 
             try {
+                //Simulate traveling to the company.
                 Thread.sleep((int) (Math.random() * 1000));
+
+                //Notify the company we've arrived.
                 userAtCompany.release();
+
+                //Wait for a meeting invitation.
                 userMeetingInvitation.acquire();
                 goToMeeting();
             } catch (InterruptedException e) {
@@ -290,7 +330,10 @@ public class Dommel {
 
         public void goToMeeting(){
             try {
+                //Simulate walking to the meeting.
                 Thread.sleep(100);
+
+                //Let Jaap know we've arrived in the meeting room.
                 userInMeetingRoom.release();
             } catch (InterruptedException e) {
 
