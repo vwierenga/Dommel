@@ -14,7 +14,7 @@ public class Dommel {
     private int softwareEngineersInMeetingRoom = 0;
     private int usersInQueue = 0;
     private Semaphore waitingUser, userCompanyInvitation, userAtCompany, userMeetingInvitation, userInMeetingRoom, waitingSoftwareEngineer, softwareEngineerInvitation, softwareEngineerInMeetingRoom, test;
-    private Semaphore userQueueMutex, softwareEngineerQueueMutex, softwareEngineerMeetingRoomMutex;
+    private Semaphore userQueueMutex, softwareEngineerQueueMutex;
 
     public static void main(String [] args)
 	{
@@ -36,7 +36,6 @@ public class Dommel {
         userQueueMutex = new Semaphore(1);
 
         softwareEngineerQueueMutex = new Semaphore(1);
-        softwareEngineerMeetingRoomMutex = new Semaphore(1);
 
 
         Jaap jaap = new Jaap();
@@ -88,13 +87,14 @@ public class Dommel {
                             for(int i=0; i < 3; i++) {
                                 waitingSoftwareEngineer.acquire();
                                 softwareEngineerInvitation.release();
+                                System.out.println(i);
                             }
                             softwareEngineerQueueMutex.acquire();
                             softwareEngineersInQueue = softwareEngineersInQueue - 3;
-                            System.out.println(softwareEngineersInQueue);
+                            //System.out.println(softwareEngineersInQueue);
                             softwareEngineerQueueMutex.release();
 
-                            //softwareEngineerInMeetingRoom.acquire();
+                            softwareEngineerInMeetingRoom.acquire(3);
                             softwareEngineerMeeting();
                         }
                     }
@@ -115,6 +115,7 @@ public class Dommel {
             System.out.println("software engineer meeting in progress");
             try {
                 Thread.sleep((int) (Math.random() * 3000));
+                softwareEngineerInMeetingRoom.release(3);
             } catch (InterruptedException e) {
 
             }
