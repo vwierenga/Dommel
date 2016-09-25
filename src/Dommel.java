@@ -89,10 +89,6 @@ public class Dommel {
                                 softwareEngineerInvitation.release();
                                 System.out.println(i);
                             }
-                            softwareEngineerQueueMutex.acquire();
-                            softwareEngineersInQueue = softwareEngineersInQueue - 3;
-                            //System.out.println(softwareEngineersInQueue);
-                            softwareEngineerQueueMutex.release();
 
                             softwareEngineerInMeetingRoom.acquire(3);
                             softwareEngineerMeeting();
@@ -137,8 +133,12 @@ public class Dommel {
                     System.out.println("SoftwareEngineer ready");
                     softwareEngineerInvitation.acquire();
 
-                    //Thread.sleep(100);
-                    //softwareEngineerInMeetingRoom.release();
+                    softwareEngineerQueueMutex.acquire();
+                    softwareEngineersInQueue--;
+                    softwareEngineerQueueMutex.release();
+
+                    Thread.sleep(100);
+                    softwareEngineerInMeetingRoom.release();
                     System.out.println("SoftwareEngineer");
                 } catch (InterruptedException e) {
 
