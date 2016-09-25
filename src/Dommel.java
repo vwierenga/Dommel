@@ -76,40 +76,16 @@ public class Dommel {
                 try {
                     Thread.sleep((int) (Math.random() * 2000));
                     System.out.println("Jaap cycle");
-                    //if (waitingUser.tryAcquire()){
+                    if (waitingUser.tryAcquire()){
                         //waitingSoftwareEngineer.acquire();
 
-                    //} else {
+                    } else {
                         waitingSoftwareEngineer.acquire(3);
                         softwareEngineerInvitation.release(3);
                         softwareEngineerInMeetingRoom.acquire(3);
                         softwareEngineerMeeting();
-                    //}
-
-                    /*
-
-                     */
-
-                    /*
-                    else {
-                        softwareEngineerQueueMutex.acquire();
-                        int engineersInQueue = softwareEngineersInQueue;
-                        softwareEngineerQueueMutex.release();
-                        if (engineersInQueue >= 3) {
-                            for(int i=0; i < 3; i++) {
-                                waitingSoftwareEngineer.acquire();
-                                softwareEngineerInvitation.release();
-                            }
-
-                            softwareEngineerInMeetingRoom.acquire(3);
-                            softwareEngineerMeeting();
-                        }
                     }
 
-                     */
-
-                    //userCompanyInvitation.release();
-                    //System.out.println("Jaap");
                 } catch (InterruptedException e) {
 
                 }
@@ -145,7 +121,7 @@ public class Dommel {
 
                     System.out.println("SoftwareEngineer ready");
                     softwareEngineerInvitation.acquire();
-                    System.out.println("SoftwareEngineer invitation acquired");
+
                     softwareEngineerQueueMutex.acquire();
                     softwareEngineersInQueue--;
                     System.out.println("engineers in queue " + softwareEngineersInQueue);
