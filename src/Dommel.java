@@ -13,8 +13,9 @@ public class Dommel {
     private int softwareEngineersInQueue = 0;
     private int softwareEngineersInMeetingRoom = 0;
     private int usersInQueue = 0;
+    private boolean meetingInProgress = false;
     private Semaphore waitingUser, userCompanyInvitation, userAtCompany, userMeetingInvitation, userInMeetingRoom, waitingSoftwareEngineer, softwareEngineerInvitation, softwareEngineerInMeetingRoom, test;
-    private Semaphore userQueueMutex, softwareEngineerQueueMutex;
+    private Semaphore userQueueMutex, softwareEngineerQueueMutex, meetingMutex;
 
     public static void main(String [] args)
 	{
@@ -36,6 +37,8 @@ public class Dommel {
         userQueueMutex = new Semaphore(1);
 
         softwareEngineerQueueMutex = new Semaphore(1);
+
+        meetingMutex = new Semaphore(1);
 
 
         Jaap jaap = new Jaap();
@@ -108,9 +111,16 @@ public class Dommel {
         }
 
         public void userMeeting() {
+
             System.out.println("user meeting in progress");
             try {
+                meetingMutex.acquire();
+                meetingInProgress = true;
+                meetingMutex.release();
                 Thread.sleep((int) (Math.random() * 3000));
+                meetingMutex.acquire();
+                meetingInProgress = false;
+                meetingMutex.release();
             } catch (InterruptedException e) {
 
             }
@@ -119,7 +129,13 @@ public class Dommel {
         public void softwareEngineerMeeting() {
             System.out.println("software engineer meeting in progress");
             try {
+                meetingMutex.acquire();
+                meetingInProgress = true;
+                meetingMutex.release();
                 Thread.sleep((int) (Math.random() * 3000));
+                meetingMutex.acquire();
+                meetingInProgress = false;
+                meetingMutex.release();
             } catch (InterruptedException e) {
 
             }
@@ -132,21 +148,28 @@ public class Dommel {
             while (true) {
                 try {
                     Thread.sleep((int) (Math.random() * 1000));
-                    waitingSoftwareEngineer.release();
 
-                    softwareEngineerQueueMutex.acquire();
-                    softwareEngineersInQueue++;
-                    softwareEngineerQueueMutex.release();
+                    meetingMutex.acquire();
+                    boolean meeting = meetingInProgress;
+                    meetingMutex.release();
 
-                    System.out.println("SoftwareEngineer ready");
-                    softwareEngineerInvitation.acquire();
+                    if(!meeting) {
+                        waitingSoftwareEngineer.release();
 
-                    softwareEngineerQueueMutex.acquire();
-                    softwareEngineersInQueue--;
-                    System.out.println("engineers in queue " + softwareEngineersInQueue);
-                    softwareEngineerQueueMutex.release();
+                        softwareEngineerQueueMutex.acquire();
+                        softwareEngineersInQueue++;
+                        softwareEngineerQueueMutex.release();
 
-                    goToMeeting();
+                        System.out.println("SoftwareEngineer ready");
+                        softwareEngineerInvitation.acquire();
+
+                        softwareEngineerQueueMutex.acquire();
+                        softwareEngineersInQueue--;
+                        System.out.println("engineers in queue " + softwareEngineersInQueue);
+                        softwareEngineerQueueMutex.release();
+
+                        goToMeeting();
+                    }
                 } catch (InterruptedException e) {
 
                 }
