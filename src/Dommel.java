@@ -76,8 +76,23 @@ public class Dommel {
                 try {
                     Thread.sleep((int) (Math.random() * 2000));
                     System.out.println("Jaap cycle");
+
                     if (waitingUser.tryAcquire()){
-                        //waitingSoftwareEngineer.acquire();
+                        waitingSoftwareEngineer.acquire();
+
+                        userQueueMutex.acquire();
+                        int amount = usersInQueue;
+                        userQueueMutex.release();
+
+                        userCompanyInvitation.release(amount);
+                        userAtCompany.acquire(amount);
+                        softwareEngineerInvitation.release();
+                        userMeetingInvitation.release(amount);
+
+                        softwareEngineerInMeetingRoom.acquire();
+                        userInMeetingRoom.acquire(amount);
+
+                        userMeeting();
 
                     } else {
                         waitingSoftwareEngineer.acquire(3);
@@ -93,14 +108,18 @@ public class Dommel {
         }
 
         public void userMeeting() {
+            System.out.println("user meeting in progress");
+            try {
+                Thread.sleep((int) (Math.random() * 3000));
+            } catch (InterruptedException e) {
 
+            }
         }
 
         public void softwareEngineerMeeting() {
             System.out.println("software engineer meeting in progress");
             try {
                 Thread.sleep((int) (Math.random() * 3000));
-                //softwareEngineerInMeetingRoom.release(3);
             } catch (InterruptedException e) {
 
             }
@@ -151,7 +170,17 @@ public class Dommel {
                 try {
                     Thread.sleep((int) (Math.random() * 1000));
                     waitingUser.release();
+
+                    userQueueMutex.acquire();
+                    usersInQueue++;
+                    userQueueMutex.release();
+
                     userCompanyInvitation.acquire();
+
+                    userQueueMutex.acquire();
+                    usersInQueue--;
+                    userQueueMutex.release();
+
                     goToCompany();
                 } catch (InterruptedException e) {
 
@@ -165,7 +194,16 @@ public class Dommel {
                 Thread.sleep((int) (Math.random() * 1000));
                 userAtCompany.release();
                 userMeetingInvitation.acquire();
-                System.out.println("User");
+                goToMeeting();
+            } catch (InterruptedException e) {
+
+            }
+        }
+
+        public void goToMeeting(){
+            try {
+                Thread.sleep(100);
+                userInMeetingRoom.release();
             } catch (InterruptedException e) {
 
             }
