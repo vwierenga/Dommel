@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Random;
 import java.util.concurrent.Semaphore;
 
 /**
@@ -14,7 +15,7 @@ public class Dommel {
     private int softwareEngineersInMeetingRoom = 0;
     private int usersInQueue = 0;
     private boolean meetingInProgress = false;
-    private Semaphore waitingUser, userCompanyInvitation, userAtCompany, userMeetingInvitation, userInMeetingRoom, waitingSoftwareEngineer, softwareEngineerInvitation, softwareEngineerInMeetingRoom, test;
+    private Semaphore waitingUser, userCompanyInvitation, userAtCompany, userMeetingInvitation, userInMeetingRoom, waitingSoftwareEngineer, softwareEngineerInvitation, softwareEngineerNeededInMeetingRoom, meetingFinished;
     private Semaphore userQueueMutex, softwareEngineerQueueMutex, meetingMutex;
 
     public static void main(String [] args)
@@ -23,7 +24,6 @@ public class Dommel {
     }
 
     public void run() {
-        System.out.println("test");
         waitingUser = new Semaphore(0);
         userCompanyInvitation = new Semaphore(0);
         userAtCompany = new Semaphore(0);
@@ -32,7 +32,9 @@ public class Dommel {
 
         waitingSoftwareEngineer = new Semaphore(0);
         softwareEngineerInvitation = new Semaphore(0);
-        softwareEngineerInMeetingRoom = new Semaphore(0);
+        softwareEngineerNeededInMeetingRoom = new Semaphore(0);
+
+        meetingFinished = new Semaphore(0);
 
         userQueueMutex = new Semaphore(1);
 
@@ -40,9 +42,13 @@ public class Dommel {
 
         meetingMutex = new Semaphore(1);
 
-
         Jaap jaap = new Jaap();
-        User user1 = new User();
+
+        for(int i=0; i < amountOfUsers; i++){
+            User user = new User();
+            Thread userThread = new Thread(user);
+            userThread.start();
+        }
 
         for(int i=0; i < amountOfSoftwareEngineers; i++){
             SoftwareEngineer engineer = new SoftwareEngineer();
@@ -51,15 +57,12 @@ public class Dommel {
         }
 
         Thread jaapThread = new Thread(jaap);
-        Thread user1Thread = new Thread(user1);
 
         jaapThread.start();
-        user1Thread.start();
 
 
         try{
             jaapThread.join();
-            user1Thread.join();
 
 
         } catch (InterruptedException e){
@@ -92,15 +95,15 @@ public class Dommel {
                         softwareEngineerInvitation.release();
                         userMeetingInvitation.release(amount);
 
-                        softwareEngineerInMeetingRoom.acquire();
+                        softwareEngineerNeededInMeetingRoom.release();
                         userInMeetingRoom.acquire(amount);
 
-                        userMeeting();
+                        userMeeting(amount + 1);
 
                     } else {
                         waitingSoftwareEngineer.acquire(3);
                         softwareEngineerInvitation.release(3);
-                        softwareEngineerInMeetingRoom.acquire(3);
+                        softwareEngineerNeededInMeetingRoom.release(3);
                         softwareEngineerMeeting();
                     }
 
@@ -110,7 +113,7 @@ public class Dommel {
             }
         }
 
-        public void userMeeting() {
+        public void userMeeting(int amountOfPeopleInMeeting) {
 
             System.out.println("user meeting in progress");
             try {
@@ -121,6 +124,8 @@ public class Dommel {
                 meetingMutex.acquire();
                 meetingInProgress = false;
                 meetingMutex.release();
+
+                meetingFinished.release(amountOfPeopleInMeeting);
             } catch (InterruptedException e) {
 
             }
@@ -136,6 +141,8 @@ public class Dommel {
                 meetingMutex.acquire();
                 meetingInProgress = false;
                 meetingMutex.release();
+
+                meetingFinished.release(3);
             } catch (InterruptedException e) {
 
             }
@@ -143,35 +150,23 @@ public class Dommel {
     }
 
     class SoftwareEngineer implements Runnable {
+        private int state = 0; // 0 = working, 1 = available, 2 = in meeting
+
         @Override
         public void run() {
             while (true) {
-                try {
-                    Thread.sleep((int) (Math.random() * 1000));
+                if (state == 0){
+                    work();
+                    state = new Random().nextInt(2);
+                } else if (state == 1) {
+                    notifyAvailable();
+                } else {
+                    try {
+                        meetingFinished.acquire();
+                        state = 1;
+                    } catch (InterruptedException e) {
 
-                    meetingMutex.acquire();
-                    boolean meeting = meetingInProgress;
-                    meetingMutex.release();
-
-                    if(!meeting) {
-                        waitingSoftwareEngineer.release();
-
-                        softwareEngineerQueueMutex.acquire();
-                        softwareEngineersInQueue++;
-                        softwareEngineerQueueMutex.release();
-
-                        System.out.println("SoftwareEngineer ready");
-                        softwareEngineerInvitation.acquire();
-
-                        softwareEngineerQueueMutex.acquire();
-                        softwareEngineersInQueue--;
-                        System.out.println("engineers in queue " + softwareEngineersInQueue);
-                        softwareEngineerQueueMutex.release();
-
-                        goToMeeting();
                     }
-                } catch (InterruptedException e) {
-
                 }
             }
         }
@@ -179,7 +174,49 @@ public class Dommel {
         public void goToMeeting(){
             try {
                 Thread.sleep(100);
-                softwareEngineerInMeetingRoom.release();
+                if (softwareEngineerNeededInMeetingRoom.tryAcquire()) {
+                    state = 2;
+                } else {
+                    state = 0;
+                }
+            } catch (InterruptedException e) {
+
+            }
+        }
+
+        public void work() {
+            try {
+                Thread.sleep((int) (Math.random() * 1000));
+            } catch (InterruptedException e) {
+
+            }
+        }
+
+        public void notifyAvailable() {
+            try {
+                meetingMutex.acquire();
+                boolean meeting = meetingInProgress;
+                meetingMutex.release();
+
+                if(!meeting) {
+                    waitingSoftwareEngineer.release();
+
+                    softwareEngineerQueueMutex.acquire();
+                    softwareEngineersInQueue++;
+                    softwareEngineerQueueMutex.release();
+
+                    System.out.println("SoftwareEngineer ready");
+                    softwareEngineerInvitation.acquire();
+
+                    softwareEngineerQueueMutex.acquire();
+                    softwareEngineersInQueue--;
+                    System.out.println("engineers in queue " + softwareEngineersInQueue);
+                    softwareEngineerQueueMutex.release();
+
+                    goToMeeting();
+                } else {
+                    state = 0;
+                }
             } catch (InterruptedException e) {
 
             }
@@ -187,27 +224,55 @@ public class Dommel {
     }
 
     class User implements Runnable {
+        private int state = 0; // 0 = using software, 1 = complaining, 2 = in meeting
+
         @Override
         public void run() {
             while (true) {
-                try {
-                    Thread.sleep((int) (Math.random() * 1000));
-                    waitingUser.release();
+                while (true) {
+                    if (state == 0){
+                        useSoftware();
+                        state = new Random().nextInt(2);
+                    } else if (state == 1) {
+                        complain();
+                    } else {
+                        try {
+                            meetingFinished.acquire();
+                            state = 0;
+                        } catch (InterruptedException e) {
 
-                    userQueueMutex.acquire();
-                    usersInQueue++;
-                    userQueueMutex.release();
-
-                    userCompanyInvitation.acquire();
-
-                    userQueueMutex.acquire();
-                    usersInQueue--;
-                    userQueueMutex.release();
-
-                    goToCompany();
-                } catch (InterruptedException e) {
-
+                        }
+                    }
                 }
+            }
+        }
+
+        public void useSoftware(){
+            try {
+                Thread.sleep((int) (Math.random() * 1000));
+
+            } catch (InterruptedException e) {
+
+            }
+        }
+
+        public void complain(){
+            try {
+                waitingUser.release();
+
+                userQueueMutex.acquire();
+                usersInQueue++;
+                userQueueMutex.release();
+
+                userCompanyInvitation.acquire();
+
+                userQueueMutex.acquire();
+                usersInQueue--;
+                userQueueMutex.release();
+
+                goToCompany();
+            } catch (InterruptedException e) {
+
             }
         }
 
